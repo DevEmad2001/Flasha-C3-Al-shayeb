@@ -1,0 +1,34 @@
+# AlShaib Housing — isolated stack. Does NOT modify mq-erp or turbo-erp (flasha).
+services:
+  alshaib-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    image: alshaib-api:latest
+    container_name: alshaib-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://0.0.0.0:5200
+    ports:
+      - "5200:5200"
+    networks:
+      - mq_default
+
+  alshaib-web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    image: alshaib-web:latest
+    container_name: alshaib-web
+    restart: unless-stopped
+    depends_on:
+      - alshaib-api
+    ports:
+      - "8082:3000"
+    networks:
+      - mq_default
+
+networks:
+  mq_default:
+    external: true

@@ -1,0 +1,7 @@
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+WORKDIR /app
+COPY api/ ./
+ENV ASPNETCORE_URLS=http://0.0.0.0:5200
+ENV ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 5200
+ENTRYPOINT ["dotnet", "AlShaibHousing.Api.dll"]

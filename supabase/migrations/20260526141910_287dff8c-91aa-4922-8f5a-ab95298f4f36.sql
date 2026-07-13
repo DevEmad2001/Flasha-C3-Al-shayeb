@@ -1,0 +1,1 @@
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS down_payment numeric NOT NULL DEFAULT 0;
