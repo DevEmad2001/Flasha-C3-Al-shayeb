@@ -34,7 +34,7 @@ function MonthlyPage() {
 
   const ownerProjectIds = useMemo(() => {
     if (owner === "__all__") return projects.map((p: any) => p.id);
-    return projects.filter((p: any) => p.owner_name === owner).map((p: any) => p.id);
+    return projects.filter((p: any) => (p.owner_name ?? "").trim() === owner).map((p: any) => p.id);
   }, [owner, projects]);
 
   const { data } = useQuery({
