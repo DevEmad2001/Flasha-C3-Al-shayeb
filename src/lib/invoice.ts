@@ -1,5 +1,11 @@
 import cairoFontUrl from "@/assets/Cairo-Regular.ttf";
+import receiptStampUrl from "@/assets/receipt-stamp.png";
 import { formatMoney, formatDate } from "./format";
+
+/** Fixed name shown above the recipient signature line on customer receipts (سند قبض). */
+const RECEIPT_RECIPIENT_SIGNATORY = "المهندس عبدالله الشايب";
+/** Extra vertical space reserved on customer receipts for the stamp above the signature lines. */
+const RECEIPT_STAMP_SPACE = 56;
 
 export type InvoiceData = {
   type: "customer" | "expense";
@@ -34,6 +40,7 @@ const INVOICE_THEME = {
 
 let cairoFontPromise: Promise<void> | null = null;
 let logoImagePromise: Promise<HTMLImageElement | null> | null = null;
+let stampImagePromise: Promise<HTMLImageElement | null> | null = null;
 
 function cleanText(value: string | number | null | undefined) {
   const text = String(value ?? "—").trim();
@@ -63,7 +70,22 @@ async function ensureLogoImage(): Promise<HTMLImageElement | null> {
   return logoImagePromise;
 }
 
-function drawUnifiedInvoice(ctx: CanvasRenderingContext2D, d: InvoiceData, logo: HTMLImageElement | null) {
+/** Local stamp asset (bundled by Vite). Resolves only after the image is fully decoded. */
+async function ensureStampImage(): Promise<HTMLImageElement | null> {
+  if (typeof Image === "undefined") return null;
+  stampImagePromise ??= new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      if (typeof img.decode === "function") img.decode().then(() => resolve(img), () => resolve(img));
+      else resolve(img);
+    };
+    img.onerror = () => resolve(null);
+    img.src = receiptStampUrl;
+  });
+  return stampImagePromise;
+}
+
+function drawUnifiedInvoice(ctx: CanvasRenderingContext2D, d: InvoiceData, logo: HTMLImageElement | null, stamp: HTMLImageElement | null) {
   const pageW = 595.28;
   const pageH = 841.89;
   const title = d.type === "customer" ? "سند قبض" : "سند صرف";
@@ -104,7 +126,9 @@ function drawUnifiedInvoice(ctx: CanvasRenderingContext2D, d: InvoiceData, logo:
   const panelX = 48;
   const panelY = 132;
   const panelW = pageW - 96;
-  const panelH = d.notes ? 560 : 510;
+  const isCustomerReceipt = d.type === "customer";
+  const sigExtra = isCustomerReceipt ? RECEIPT_STAMP_SPACE : 0;
+  const panelH = (d.notes ? 560 : 510) + sigExtra;
   fill(ctx, [255, 255, 255]);
   stroke(ctx, INVOICE_THEME.line);
   roundedRect(ctx, panelX, panelY, panelW, panelH, 14, true, true);
@@ -143,7 +167,13 @@ function drawUnifiedInvoice(ctx: CanvasRenderingContext2D, d: InvoiceData, logo:
     y += 70;
   }
 
-  drawSignatures(ctx, panelX + inner, Math.max(y + 16, panelY + panelH - 104), panelW - inner * 2);
+  drawSignatures(
+    ctx,
+    panelX + inner,
+    Math.max(y + 16 + sigExtra, panelY + panelH - 104),
+    panelW - inner * 2,
+    isCustomerReceipt ? { recipientName: RECEIPT_RECIPIENT_SIGNATORY, stamp } : undefined,
+  );
   fill(ctx, [148, 163, 184]);
   text(ctx, `تم إصدار هذا السند إلكترونياً · ${new Date().toLocaleString("ar-EG")}`, pageW / 2, pageH - 32, 9, "normal", "center");
 }
@@ -235,8 +265,29 @@ function drawNotes(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   wrapText(ctx, notes, w - 110, 2).forEach((line, index) => text(ctx, line, x + w - 72, y + 22 + index * 16, 10, "normal", "right"));
 }
 
-function drawSignatures(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
+function drawSignatures(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  extras?: { recipientName: string; stamp: HTMLImageElement | null },
+) {
   const sigW = (w - 58) / 2;
+  if (extras) {
+    // Company stamp above the responsible-signature line (left column), slightly rotated like a real stamp.
+    if (extras.stamp) {
+      const size = 96;
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.translate(x + sigW / 2, y + 40 - size / 2 + 4);
+      ctx.rotate((-8 * Math.PI) / 180);
+      ctx.drawImage(extras.stamp, -size / 2, -size / 2, size, size);
+      ctx.restore();
+    }
+    // Fixed recipient name above the recipient-signature line (right column).
+    fill(ctx, INVOICE_THEME.ink);
+    text(ctx, extras.recipientName, x + sigW + 58 + sigW / 2, y + 30, 13, "bold", "center");
+  }
   stroke(ctx, [148, 163, 184]);
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
@@ -255,6 +306,7 @@ export async function generateInvoice(d: InvoiceData) {
   if (typeof window === "undefined") return;
   await ensureCairoCanvasFont();
   const logo = await ensureLogoImage();
+  const stamp = d.type === "customer" ? await ensureStampImage() : null;
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait", compress: true }) as any;
   const pageW = pdf.internal.pageSize.getWidth();
@@ -268,7 +320,7 @@ export async function generateInvoice(d: InvoiceData) {
   ctx.scale(scale, scale);
   fill(ctx, [255, 255, 255]);
   ctx.fillRect(0, 0, pageW, pageH);
-  drawUnifiedInvoice(ctx, d, logo);
+  drawUnifiedInvoice(ctx, d, logo, stamp);
   pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageW, pageH);
   const fileName = `${d.type === "customer" ? "سند_قبض" : "سند_صرف"}_${d.number}.pdf`;
   pdf.save(fileName);
