@@ -7,6 +7,8 @@ public class InventoryItem
     public string? Unit { get; set; }
     public string? Category { get; set; }
     public decimal Quantity { get; set; }
+    /// <summary>Informational unit price only. Not used in any quantity, stocktake or financial calculation.</summary>
+    public decimal? Price { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using AlShaibHousing.Api.Data;
 using AlShaibHousing.Api.Entities;
 using AlShaibHousing.Api.Services;
@@ -12,7 +13,32 @@ namespace AlShaibHousing.Api.Controllers;
 [Authorize]
 public class InventoryItemsController(AppDbContext db) : ControllerBase
 {
-    public record ItemDto(string? Name, string? Unit, string? Category, decimal? Quantity, string? Notes);
+    public record ItemDto(string? Name, string? Unit, string? Category, decimal? Quantity, string? Notes)
+    {
+        private decimal? _price;
+        private bool _priceSpecified;
+
+        /// <summary>Informational price. Omitted = keep current value; explicit null = clear.</summary>
+        public decimal? Price
+        {
+            get => _price;
+            init { _price = value; _priceSpecified = true; }
+        }
+
+        [JsonIgnore]
+        public bool PriceSpecified => _priceSpecified;
+    }
+
+    private const decimal MaxPrice = 999_999_999_999.99m; // decimal(14,2)
+
+    private static string? ValidatePrice(decimal? price)
+    {
+        if (price is null) return null;
+        if (price < 0) return "السعر لا يمكن أن يكون سالباً";
+        if (decimal.Round(price.Value, 2) != price.Value) return "السعر يقبل خانتين عشريتين كحد أقصى";
+        if (price > MaxPrice) return "السعر أكبر من الحد المسموح";
+        return null;
+    }
 
     [HttpGet]
     public async Task<ActionResult> List()
@@ -25,6 +51,8 @@ public class InventoryItemsController(AppDbContext db) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(dto.Name))
             return BadRequest(new { message = "الاسم مطلوب" });
+        if (ValidatePrice(dto.Price) is { } priceError)
+            return BadRequest(new { message = priceError });
 
         var item = new InventoryItem
         {
@@ -32,6 +60,7 @@ public class InventoryItemsController(AppDbContext db) : ControllerBase
             Unit = dto.Unit,
             Category = dto.Category,
             Quantity = dto.Quantity ?? 0,
+            Price = dto.Price,
             Notes = dto.Notes,
         };
         db.InventoryItems.Add(item);
@@ -46,11 +75,14 @@ public class InventoryItemsController(AppDbContext db) : ControllerBase
         if (item is null) return NotFound();
         if (string.IsNullOrWhiteSpace(dto.Name))
             return BadRequest(new { message = "الاسم مطلوب" });
+        if (ValidatePrice(dto.Price) is { } priceError)
+            return BadRequest(new { message = priceError });
 
         item.Name = dto.Name.Trim();
         item.Unit = dto.Unit;
         item.Category = dto.Category;
         item.Notes = dto.Notes;
+        if (dto.PriceSpecified) item.Price = dto.Price;
         await db.SaveChangesAsync();
         return Ok(item);
     }

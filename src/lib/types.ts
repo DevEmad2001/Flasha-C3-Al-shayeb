@@ -78,6 +78,8 @@ export interface InventoryItem {
   unit?: string | null;
   category?: string | null;
   quantity: number;
+  /** Informational unit price only — never used in calculations. */
+  price?: number | null;
   notes?: string | null;
   created_at: string;
   updated_at: string;

@@ -14,14 +14,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Pencil, Info, Package } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { useViewMode } from "@/hooks/useViewMode";
 import { exportToExcel } from "@/lib/excel";
 import { ConfirmModal } from "@/components/ConfirmModal";
 
 export const Route = createFileRoute("/inventory")({ component: InventoryPage });
 
-const emptyItem = { name: "", unit: "", quantity: "0", notes: "" };
+const emptyItem = { name: "", unit: "", quantity: "0", price: "", notes: "" };
+
+/** Informational price only — parsed for display/storage, never used in any calculation. */
+function parsePriceInput(raw: string): { ok: true; value: number | null } | { ok: false; error: string } {
+  const s = raw.trim();
+  if (s === "") return { ok: true, value: null };
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) {
+    return { ok: false, error: "السعر يجب أن يكون صفراً أو رقماً موجباً بخانتين عشريتين كحد أقصى" };
+  }
+  return { ok: true, value: Number(s) };
+}
+
+const formatPrice = (p: number | null | undefined) => (p == null ? "—" : formatMoney(p));
 const emptyMove = { item_id: "", movement_type: "in" as "in" | "out", quantity: "", project_id: "", entered_by: "", movement_date: new Date().toISOString().slice(0, 10), notes: "" };
 
 function InventoryPage() {
@@ -128,19 +140,21 @@ function InventoryPage() {
   const openNewItem = () => { setEditItemId(null); setIForm(emptyItem); setOpenItem(true); };
   const openEditItem = (i: any) => {
     setEditItemId(i.id);
-    setIForm({ name: i.name, unit: i.unit ?? "", quantity: String(i.quantity), notes: i.notes ?? "" });
+    setIForm({ name: i.name, unit: i.unit ?? "", quantity: String(i.quantity), price: i.price == null ? "" : String(i.price), notes: i.notes ?? "" });
     setOpenItem(true);
   };
 
   const saveItem = async () => {
     if (!iForm.name.trim()) return toast.error("الاسم مطلوب");
+    const price = parsePriceInput(iForm.price);
+    if (!price.ok) return toast.error(price.error);
     try {
       if (editItemId) {
-        await inventoryApi.updateItem(editItemId, { name: iForm.name, unit: iForm.unit || null, notes: iForm.notes || null });
+        await inventoryApi.updateItem(editItemId, { name: iForm.name, unit: iForm.unit || null, price: price.value, notes: iForm.notes || null });
         toast.success("تم التعديل");
       } else {
         await inventoryApi.createItem({
-          name: iForm.name, unit: iForm.unit || null, quantity: parseFloat(iForm.quantity) || 0, notes: iForm.notes || null,
+          name: iForm.name, unit: iForm.unit || null, quantity: parseFloat(iForm.quantity) || 0, price: price.value, notes: iForm.notes || null,
         });
         toast.success("تمت الإضافة");
       }
@@ -220,6 +234,11 @@ function InventoryPage() {
               {!editItemId && (
                 <div className="space-y-1.5"><Label>الكمية المبدئية</Label><Input type="number" step="0.01" value={iForm.quantity} onChange={(e) => setIForm({ ...iForm, quantity: e.target.value })} /></div>
               )}
+              <div className="space-y-1.5">
+                <Label>السعر (د.أ)</Label>
+                <Input type="number" inputMode="decimal" step="0.01" min="0" placeholder="اختياري" value={iForm.price} onChange={(e) => setIForm({ ...iForm, price: e.target.value })} />
+                <p className="text-xs text-muted-foreground">السعر للتوضيح فقط</p>
+              </div>
               <div className="space-y-1.5"><Label>ملاحظات</Label><Textarea value={iForm.notes} onChange={(e) => setIForm({ ...iForm, notes: e.target.value })} /></div>
               {editItemId && (
                 <p className="text-xs text-muted-foreground bg-muted p-2 rounded">الكمية تتعدل تلقائياً من خلال تبويب "الحركات" (دخول/خروج).</p>
@@ -312,17 +331,19 @@ function InventoryPage() {
                     <TableHead className="text-right">الاسم</TableHead>
                     <TableHead className="text-right">الوحدة</TableHead>
                     <TableHead className="text-right">الكمية الحالية</TableHead>
+                    <TableHead className="text-right">السعر</TableHead>
                     <TableHead className="text-right">ملاحظات</TableHead>
                     <TableHead className="text-center"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredItems.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">لا يوجد مواد</TableCell></TableRow>}
+                  {filteredItems.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">لا يوجد مواد</TableCell></TableRow>}
                   {filteredItems.map((i: any) => (
                     <TableRow key={i.id}>
                       <TableCell className="font-medium text-right">{i.name}</TableCell>
                       <TableCell className="text-right">{i.unit ?? "—"}</TableCell>
                       <TableCell className="font-bold text-right">{Number(i.quantity).toLocaleString()}</TableCell>
+                      <TableCell className="text-right tabular-nums whitespace-nowrap">{formatPrice(i.price)}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground/70 max-w-[160px] truncate">{i.notes ?? "—"}</TableCell>
                       <TableCell className="text-center">
                         <div className="flex gap-1 justify-center">
@@ -357,6 +378,7 @@ function InventoryPage() {
                       <div className="mt-1.5 text-right">
                         <p className="text-xl font-bold tabular-nums leading-tight">{qty.toLocaleString()}</p>
                         <p className="text-[11px] text-muted-foreground">{i.unit ?? "—"}</p>
+                        <p className="text-[11px] text-muted-foreground tabular-nums">السعر: {formatPrice(i.price)}</p>
                       </div>
                       {i.notes && <p className="text-[11px] text-muted-foreground/70 mt-1.5 line-clamp-2 leading-relaxed">{i.notes}</p>}
                       <div className="mt-2 flex gap-0.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">

@@ -67,6 +67,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<InventoryItem>(e =>
         {
             e.Property(x => x.Quantity).HasPrecision(14, 2);
+            e.Property(x => x.Price).HasPrecision(14, 2);
         });
 
         modelBuilder.Entity<InventoryMovement>(e =>
