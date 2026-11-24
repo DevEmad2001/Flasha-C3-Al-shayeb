@@ -56,6 +56,20 @@ public class ProjectsController(AppDbContext db) : ControllerBase
             map[id] = s;
         }
 
+        // Total of expense items (البنود) per project = SUM(ProjectExpenses.TotalAmount), aggregated in SQL.
+        // Independent display value: does not use ProjectExpensePayments and does not affect Due/Paid.
+        var expenseTotals = await db.ProjectExpenses
+            .GroupBy(e => e.ProjectId)
+            .Select(g => new { ProjectId = g.Key, Total = g.Sum(e => e.TotalAmount) })
+            .ToListAsync();
+        foreach (var e in expenseTotals)
+        {
+            var id = e.ProjectId.ToString();
+            if (!map.TryGetValue(id, out var s)) s = new ProjectStats();
+            s.ExpenseItemsTotal = e.Total;
+            map[id] = s;
+        }
+
         return Ok(map);
     }
 
@@ -64,6 +78,8 @@ public class ProjectsController(AppDbContext db) : ControllerBase
         public int Customers { get; set; }
         public decimal Due { get; set; }
         public decimal Paid { get; set; }
+        /// <summary>SUM of ProjectExpenses.TotalAmount for the project (serialized as expense_items_total).</summary>
+        public decimal ExpenseItemsTotal { get; set; }
     }
 
     [HttpPost]

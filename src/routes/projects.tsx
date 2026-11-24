@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, Building2, MapPin, User, Calendar, Users, CreditCard, StickyNote } from "lucide-react";
+import { Plus, Trash2, Pencil, Building2, MapPin, User, Calendar, Users, CreditCard, StickyNote, Wallet } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { exportToExcel } from "@/lib/excel";
@@ -240,7 +240,7 @@ function ProjectsPage() {
           {(() => {
             const r = rows.find((x: any) => x.id === expandedId);
             if (!r) return null;
-            const s = (statsMap as any)[r.id] ?? { customers: 0, due: 0, paid: 0 };
+            const s = (statsMap as any)[r.id] ?? { customers: 0, due: 0, paid: 0, expense_items_total: 0 };
             const remaining = s.due - s.paid;
             return (
               <>
@@ -275,6 +275,7 @@ function ProjectsPage() {
                     <Stat icon={CreditCard} label="إجمالي العقود" value={formatMoney(s.due)} />
                     <Stat icon={CreditCard} label="المحصّل" value={formatMoney(s.paid)} tone="success" />
                     <Stat icon={CreditCard} label="المتبقي" value={formatMoney(remaining)} tone="accent" />
+                    <Stat icon={Wallet} label="المدفوعات" value={formatMoney(s.expense_items_total ?? 0)} className="col-span-full min-w-0 break-words" />
                   </div>
                   {r.notes && (
                     <div className="flex gap-2 text-sm p-3 rounded-lg bg-muted/50">
@@ -319,10 +320,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Stat({ icon: Icon, label, value, tone }: { icon: any; label: string; value: string; tone?: "success" | "accent" }) {
+function Stat({ icon: Icon, label, value, tone, className = "" }: { icon: any; label: string; value: string; tone?: "success" | "accent"; className?: string }) {
   const color = tone === "success" ? "text-success" : tone === "accent" ? "text-accent" : "text-foreground";
   return (
-    <div className="p-3 rounded-lg bg-muted/40 border border-border/50 animate-fade-in">
+    <div className={`p-3 rounded-lg bg-muted/40 border border-border/50 animate-fade-in ${className}`}>
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
         <Icon className="w-3.5 h-3.5" /> {label}
       </div>

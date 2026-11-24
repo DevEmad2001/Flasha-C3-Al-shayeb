@@ -165,6 +165,7 @@ function PaymentsPage() {
       toast.success(editExpId ? "تم التعديل" : "تم الإضافة");
       setExpForm(emptyExp); setEditExpId(null); setOpenExpense(false);
       qc.invalidateQueries({ queryKey: ["project-expenses", projectId] });
+      qc.invalidateQueries({ queryKey: ["projects-stats"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "فشل الحفظ");
     }
@@ -201,6 +202,7 @@ function PaymentsPage() {
   const removeExpense = useCallback(async (id: string) => {
     await projectExpensesApi.remove(id);
     qc.invalidateQueries({ queryKey: ["project-expenses", projectId] });
+    qc.invalidateQueries({ queryKey: ["projects-stats"] });
     setPendingDelete(null);
   }, [qc, projectId]);
 

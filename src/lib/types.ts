@@ -123,4 +123,6 @@ export interface ProjectStats {
   customers: number;
   due: number;
   paid: number;
+  /** SUM of the project's expense items (البنود) total_amount — display only. */
+  expense_items_total?: number;
 }
